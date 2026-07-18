@@ -42,6 +42,7 @@ export default function App() {
   const [adminNotes, setAdminNotes] = useState<AdminNote[]>([]);
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [selectedPaymentMemberId, setSelectedPaymentMemberId] = useState<string | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // --- Firebase Synchronization Effects ---
   useEffect(() => {
@@ -507,7 +508,7 @@ export default function App() {
             initial={{ opacity: 0, scale: 0.98, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.6, cubicBezier: [0.16, 1, 0.3, 1] }}
-            className="flex h-screen bg-gray-50 overflow-hidden font-sans text-gray-800 w-full"
+            className="flex h-screen bg-gray-50 overflow-hidden font-sans text-gray-800 w-full relative"
             id="app-root-layout"
           >
             {/* Sidebar navigation */}
@@ -517,14 +518,17 @@ export default function App() {
               companyName="Mantai"
               subTitle="Gestión Financiera"
               currentMember={currentMember}
+              isOpenMobile={isMobileMenuOpen}
+              onCloseMobile={() => setIsMobileMenuOpen(false)}
             />
 
             {/* Main page panel */}
-            <div className="flex-1 flex flex-col overflow-hidden" id="app-main-panel">
+            <div className="flex-1 flex flex-col overflow-hidden w-full" id="app-main-panel">
               {/* Navigation / Header */}
               <Navbar
                 currentMember={currentMember}
                 onLogout={handleLogout}
+                onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               />
 
               {/* Dynamic page content */}

@@ -406,6 +406,14 @@ export default function InvoicesView({
                   </button>
                 </div>
 
+                {/* Helpful Reminder on where the money goes */}
+                <div className="bg-amber-50 text-[10px] text-amber-900 p-3 rounded-2xl border border-amber-200 flex items-start gap-2 font-medium leading-relaxed shadow-xs" id="invoice-money-guide-alert">
+                  <span className="font-extrabold text-amber-700 shrink-0 text-xs">💡 DINERO DE LA FACTURA:</span>
+                  <span>
+                    Escribe la cantidad de dinero en la columna <strong className="text-amber-950 font-extrabold">"Precio Unit. (₡)"</strong>. El sistema multiplicará automáticamente este valor por la cantidad para calcular el total a cobrar.
+                  </span>
+                </div>
+
                 {/* Explicit column labels */}
                 <div className="flex gap-2 text-[9px] font-bold text-gray-400 uppercase tracking-wider px-2">
                   <div className="flex-1">Descripción del Concepto / Servicio</div>
@@ -439,15 +447,17 @@ export default function InvoicesView({
                         />
                       </div>
                       <div className="w-24 relative">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400">₡</span>
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-blue-600">₡</span>
                         <input
                           type="number"
                           value={item.price || ''}
                           onChange={(e) => handleItemChange(index, 'price', parseFloat(e.target.value) || 0)}
-                          placeholder="Monto"
+                          placeholder="Poner Dinero ₡"
+                          title="Escribe aquí la cantidad de dinero en colones (₡) para este ítem"
                           min={0}
                           required
-                          className="w-full py-1.5 pl-6 pr-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500/30 font-semibold"
+                          className="w-full py-1.5 pl-6 pr-1.5 text-xs bg-blue-50/20 border border-blue-200 text-blue-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 font-black"
+                          id={`invoice-item-price-input-${index}`}
                         />
                       </div>
                       {items.length > 1 && (

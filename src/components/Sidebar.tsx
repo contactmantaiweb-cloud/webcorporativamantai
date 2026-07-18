@@ -9,6 +9,7 @@ import {
   Database,
   Building2,
   Sparkles,
+  X,
   type LucideIcon
 } from 'lucide-react';
 import { Member } from '../types';
@@ -22,6 +23,8 @@ interface SidebarProps {
   companyName?: string;
   subTitle?: string;
   currentMember: Member;
+  isOpenMobile?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export default function Sidebar({
@@ -29,7 +32,9 @@ export default function Sidebar({
   setActiveTab,
   companyName = 'Mantai',
   subTitle = 'Agencia digital',
-  currentMember
+  currentMember,
+  isOpenMobile = false,
+  onCloseMobile
 }: SidebarProps) {
   const menuItems = [
     { id: 'dashboard' as ActiveTab, label: 'Panel General', icon: LayoutDashboard },
@@ -45,57 +50,88 @@ export default function Sidebar({
   ];
 
   return (
-    <aside className="w-64 bg-white border-r border-gray-100 flex flex-col h-screen" id="app-sidebar">
-      {/* Brand Logo Header */}
-      <div className="p-6 border-b border-gray-50 flex items-center gap-3" id="sidebar-logo-header">
-        <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-blue-500/20">
-          <Building2 className="w-5.5 h-5.5" />
-        </div>
-        <div>
-          <h1 className="font-bold text-xl text-gray-900 leading-none tracking-tight">{companyName}</h1>
-          <span className="text-xs text-gray-400 font-medium mt-1 block">{subTitle}</span>
-        </div>
-      </div>
+    <>
+      {/* Backdrop for mobile */}
+      {isOpenMobile && (
+        <div 
+          className="fixed inset-0 bg-gray-900/40 backdrop-blur-xs z-40 md:hidden" 
+          onClick={onCloseMobile} 
+          id="sidebar-backdrop"
+        />
+      )}
 
-      {/* Main Navigation Menu Links */}
-      <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto" id="sidebar-nav">
-        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block px-3 mb-3">
-          Módulos Principales
-        </span>
-        {menuItems.map((item) => {
-          const IconComponent = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition duration-150 ${
-                isActive
-                  ? 'bg-blue-50 text-blue-600 shadow-sm shadow-blue-50/50'
-                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-              }`}
-              id={`sidebar-link-${item.id}`}
-            >
-              <IconComponent className={`w-5 h-5 shrink-0 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
-              <span>{item.label}</span>
-              {isActive && (
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-600 ml-auto" />
-              )}
-            </button>
-          );
-        })}
-      </nav>
+      <aside 
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-100 flex flex-col h-screen md:relative md:flex transition-transform duration-300 ease-in-out ${
+          isOpenMobile ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
+        id="app-sidebar"
+      >
+        {/* Brand Logo Header */}
+        <div className="p-6 border-b border-gray-50 flex items-center justify-between" id="sidebar-logo-header">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-blue-500/20">
+              <Building2 className="w-5.5 h-5.5" />
+            </div>
+            <div>
+              <h1 className="font-bold text-xl text-gray-900 leading-none tracking-tight">{companyName}</h1>
+              <span className="text-xs text-gray-400 font-medium mt-1 block">{subTitle}</span>
+            </div>
+          </div>
+          
+          {/* Close button for mobile */}
+          <button 
+            type="button"
+            onClick={onCloseMobile}
+            className="md:hidden p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition"
+            title="Cerrar menú"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-      {/* Footer Branding Area */}
-      <div className="p-4 border-t border-gray-50 bg-gray-50/50" id="sidebar-footer">
-        <div className="bg-white border border-gray-100 p-3 rounded-xl flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          <div className="text-xs">
-            <span className="font-semibold text-gray-700 block leading-none">Canal de Datos</span>
-            <span className="text-[10px] text-gray-400 font-medium">Conexión Segura SSL</span>
+        {/* Main Navigation Menu Links */}
+        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto" id="sidebar-nav">
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block px-3 mb-3">
+            Módulos Principales
+          </span>
+          {menuItems.map((item) => {
+            const IconComponent = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setActiveTab(item.id);
+                  onCloseMobile?.();
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition duration-150 ${
+                  isActive
+                    ? 'bg-blue-50 text-blue-600 shadow-sm shadow-blue-50/50'
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+                id={`sidebar-link-${item.id}`}
+              >
+                <IconComponent className={`w-5 h-5 shrink-0 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
+                <span>{item.label}</span>
+                {isActive && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-600 ml-auto" />
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Footer Branding Area */}
+        <div className="p-4 border-t border-gray-50 bg-gray-50/50" id="sidebar-footer">
+          <div className="bg-white border border-gray-100 p-3 rounded-xl flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <div className="text-xs">
+              <span className="font-semibold text-gray-700 block leading-none">Canal de Datos</span>
+              <span className="text-[10px] text-gray-400 font-medium">Conexión Segura SSL</span>
+            </div>
           </div>
         </div>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }

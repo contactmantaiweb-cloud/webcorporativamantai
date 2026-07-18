@@ -440,7 +440,7 @@ export default function CalendarView({
 
           {/* Render Calendar (Month View) */}
           {viewType === 'month' && (
-            <div className="flex flex-col" id="calendar-month-grid">
+            <div className="hidden md:flex flex-col" id="calendar-month-grid">
               {/* Day header names */}
               <div className="grid grid-cols-7 gap-1 text-center mb-2">
                 {dayNames.map((d, i) => (
@@ -511,7 +511,7 @@ export default function CalendarView({
 
           {/* Render Calendar (Week View) */}
           {viewType === 'week' && (
-            <div className="grid grid-cols-7 gap-3 min-h-[440px]" id="calendar-week-grid">
+            <div className="hidden md:grid grid-cols-7 gap-3 min-h-[440px]" id="calendar-week-grid">
               {weekDays.map((day, idx) => {
                 const dayJobs = jobsByDate[day.dateStr] || [];
                 const dayNotes = notesByDate[day.dateStr] || [];
@@ -583,6 +583,131 @@ export default function CalendarView({
               })}
             </div>
           )}
+
+          {/* Responsive Fallback: Mobile Agenda List View */}
+          <div className="md:hidden space-y-4 mt-4" id="calendar-mobile-agenda">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Agenda para Celulares</span>
+              <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-bold">Listado Vertical</span>
+            </div>
+            
+            {/* If no jobs in the whole month/week */}
+            {Object.keys(jobsByDate).length === 0 ? (
+              <div className="bg-gray-50 border border-gray-100 rounded-2xl p-8 text-center" id="mobile-no-jobs">
+                <CalendarIcon className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-sm text-gray-500 font-semibold">No hay trabajos asignados en este período.</p>
+                <button 
+                  onClick={() => openNewJobModal()}
+                  className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Asignar Primer Trabajo
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4" id="mobile-jobs-list">
+                {(() => {
+                  // Get all days of the current month (if viewType === 'month') or week (if viewType === 'week')
+                  const daysToRender = viewType === 'month' 
+                    ? monthGridDays.filter(cell => cell.isCurrentMonth)
+                    : weekDays;
+
+                  // Filter to days that have jobs or notes, or isToday, so it's a compact list
+                  const daysWithContent = daysToRender.filter(day => {
+                    const dayJobs = jobsByDate[day.dateStr] || [];
+                    const isToday = day.dateStr === formatDateLocal(new Date());
+                    return dayJobs.length > 0 || isToday;
+                  });
+
+                  if (daysWithContent.length === 0) {
+                    return (
+                      <div className="bg-gray-50 border border-gray-150 rounded-2xl p-6 text-center text-xs text-gray-400 font-medium">
+                        No hay actividades programadas para este periodo. Puedes tocar "Asignar Trabajo" arriba para programar una.
+                      </div>
+                    );
+                  }
+
+                  return daysWithContent.map((day, idx) => {
+                    const dayJobs = jobsByDate[day.dateStr] || [];
+                    const isToday = day.dateStr === formatDateLocal(new Date());
+                    
+                    return (
+                      <div 
+                        key={idx} 
+                        className={`bg-white border rounded-2xl p-4 transition-all ${
+                          isToday ? 'border-blue-300 ring-2 ring-blue-500/10' : 'border-gray-150'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between pb-2.5 border-b border-gray-100 mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-black w-7 h-7 rounded-full flex items-center justify-center ${
+                              isToday ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {day.date.getDate()}
+                            </span>
+                            <div>
+                              <span className="text-xs font-extrabold text-gray-900 block capitalize">
+                                {dayNames[day.date.getDay()]}
+                              </span>
+                              <span className="text-[10px] text-gray-400 block font-semibold">
+                                {day.dateStr}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {isToday && (
+                            <span className="text-[9px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                              Hoy
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Jobs for this day */}
+                        <div className="space-y-2">
+                          {dayJobs.length === 0 ? (
+                            <div className="text-center py-2 text-[11px] text-gray-400 font-medium italic">
+                              Sin trabajos asignados. Toca para asignar uno.
+                            </div>
+                          ) : (
+                            dayJobs.map(job => {
+                              const style = statusStyles[job.status || 'pending'];
+                              return (
+                                <div 
+                                  key={job.id}
+                                  onClick={(e) => openEditJobModal(job, e)}
+                                  className={`p-3 rounded-xl border transition text-xs space-y-1 cursor-pointer hover:shadow-xs ${style.bg}`}
+                                >
+                                  <h4 className="font-extrabold leading-tight text-gray-900">{job.title}</h4>
+                                  
+                                  <div className="flex items-center gap-1.5 text-[10px] text-gray-500 font-semibold pt-1">
+                                    <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                    <span>Asignado a: <strong className="text-gray-700">{job.memberName}</strong></span>
+                                  </div>
+
+                                  {job.notes && (
+                                    <p className="text-[10px] text-gray-400 font-medium line-clamp-1 mt-0.5">
+                                      {job.notes}
+                                    </p>
+                                  )}
+
+                                  <div className="flex items-center justify-between pt-1.5 border-t border-black/5 mt-1.5">
+                                    <span className="text-[9px] font-bold uppercase tracking-wider">
+                                      {style.label}
+                                    </span>
+                                    <div className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            )}
+          </div>
         </div>
 
       {/* MINI NOTEBOOK SECTION - BELOW CALENDAR */}
