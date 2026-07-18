@@ -59,6 +59,11 @@ export default function App() {
         setMembers(INITIAL_MEMBERS);
       } else {
         setMembers(list);
+        // Automatically ensure GABRIEL GUADAMUZ is updated to GABRIEL GUADAMUZ R. in Firestore if already seeded
+        const gabriel = list.find((m) => m.id === 'm5');
+        if (gabriel && gabriel.name === 'GABRIEL GUADAMUZ') {
+          setDoc(doc(db, 'members', 'm5'), { name: 'GABRIEL GUADAMUZ R.' }, { merge: true });
+        }
       }
     });
     return () => unsubscribe();

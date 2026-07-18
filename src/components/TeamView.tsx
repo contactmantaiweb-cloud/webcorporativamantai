@@ -144,8 +144,9 @@ export default function TeamView({
   const getRoleBadge = (r: UserRole) => {
     switch (r) {
       case 'admin':
-      case 'CEO':
         return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'CEO':
+        return 'bg-[#d3040f] text-black border-red-700 font-extrabold shadow-xs';
       case 'CPO/CFO':
       case 'CFO/CPO':
       case 'CMO':

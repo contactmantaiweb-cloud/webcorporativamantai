@@ -39,7 +39,7 @@ export const INITIAL_MEMBERS: Member[] = [
   },
   {
     id: 'm5',
-    name: 'GABRIEL GUADAMUZ',
+    name: 'GABRIEL GUADAMUZ R.',
     email: 'gabrielguadamuzriver@gmail.com',
     role: 'CEO',
     active: true,

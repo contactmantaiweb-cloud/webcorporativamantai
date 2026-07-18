@@ -14,7 +14,7 @@ export default function Navbar({ currentMember, onLogout, onToggleMobileMenu }: 
       case 'admin':
         return { label: 'Administrador (MantaiWeb)', bg: 'bg-blue-100 text-blue-700 border-blue-200' };
       case 'CEO':
-        return { label: 'CEO (Director Ejecutivo)', bg: 'bg-rose-100 text-rose-700 border-rose-200' };
+        return { label: 'CEO (Director Ejecutivo)', bg: 'bg-[#d3040f] text-black border-red-700 font-extrabold shadow-xs' };
       case 'CFO/CPO':
         return { label: 'CFO/CPO (Director Financiero)', bg: 'bg-amber-100 text-amber-700 border-amber-200' };
       case 'CPO/CFO':
