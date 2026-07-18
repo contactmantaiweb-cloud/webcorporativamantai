@@ -1,0 +1,79 @@
+{
+  "entities": {
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Un registro de ingresos o egresos financieros de la empresa",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "status": { "type": "string", "enum": ["completed", "pending"] },
+        "loggedBy": { "type": "string" }
+      },
+      "required": ["id", "date", "category", "description", "amount", "type", "status", "loggedBy"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Una factura emitida a un cliente",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "client": { "type": "string" },
+        "issueDate": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["paid", "pending", "overdue"] },
+        "loggedBy": { "type": "string" },
+        "items": { "type": "array" }
+      },
+      "required": ["id", "client", "issueDate", "dueDate", "amount", "status", "loggedBy"]
+    },
+    "Budget": {
+      "title": "Budget",
+      "description": "Un límite de presupuesto para una categoría",
+      "type": "object",
+      "properties": {
+        "category": { "type": "string" },
+        "limit": { "type": "number" }
+      },
+      "required": ["category", "limit"]
+    },
+    "Member": {
+      "title": "Member",
+      "description": "Un miembro de la empresa y del organigrama corporativo",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "active": { "type": "boolean" },
+        "avatarColor": { "type": "string" },
+        "password": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "role", "active"]
+    }
+  },
+  "firestore": {
+    "transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Colección de transacciones financieras en tiempo real"
+    },
+    "invoices/{invoiceId}": {
+      "schema": "Invoice",
+      "description": "Colección de facturas en tiempo real"
+    },
+    "budgets/{budgetId}": {
+      "schema": "Budget",
+      "description": "Colección de presupuestos en tiempo real"
+    },
+    "members/{memberId}": {
+      "schema": "Member",
+      "description": "Colección de miembros y credenciales en tiempo real"
+    }
+  }
+}
