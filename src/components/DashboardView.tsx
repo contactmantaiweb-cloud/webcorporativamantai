@@ -11,9 +11,11 @@ import {
   Clock,
   Calendar,
   Info,
-  Sparkles
+  Sparkles,
+  RefreshCw
 } from 'lucide-react';
 import { Transaction, CategoryBudget, Invoice, Member } from '../types';
+import { getQuoteOfDay, MOTIVATIONAL_QUOTES } from '../data/quotes';
 
 interface DashboardViewProps {
   transactions: Transaction[];
@@ -36,6 +38,16 @@ export default function DashboardView({
 }: DashboardViewProps) {
   // Use the unfiltered list for global/company metrics if provided
   const companyTxs = allTransactions || transactions;
+
+  const [currentQuote, setCurrentQuote] = useState(getQuoteOfDay);
+
+  const handleRefreshQuote = () => {
+    const otherQuotes = MOTIVATIONAL_QUOTES.filter(q => q.text !== currentQuote.text);
+    if (otherQuotes.length > 0) {
+      const randomQuote = otherQuotes[Math.floor(Math.random() * otherQuotes.length)];
+      setCurrentQuote(randomQuote);
+    }
+  };
 
   // 1. Calculations
   const metrics = useMemo(() => {
@@ -155,6 +167,27 @@ export default function DashboardView({
           >
             <Plus className="w-4 h-4 text-blue-700" />
             <span>Registrar Transacción</span>
+          </button>
+        </div>
+
+        {/* Motivational quote of the day */}
+        <div className="pt-4 border-t border-blue-100/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs md:text-sm text-blue-100/85 bg-blue-950/20 -mx-6 -mb-6 md:-mx-8 md:-mb-8 p-4 md:px-8 rounded-b-3xl" id="dashboard-daily-quote-section">
+          <div className="flex items-start gap-2.5">
+            <Sparkles className="w-4 h-4 text-amber-300 shrink-0 mt-0.5 animate-pulse" />
+            <div>
+              <span className="text-[9px] font-black text-amber-300 uppercase tracking-widest block mb-0.5">Motivación del Día</span>
+              <p className="italic font-medium text-blue-50">"{currentQuote.text}"</p>
+              {currentQuote.author && <span className="text-[10px] text-blue-200/70 block mt-0.5">— {currentQuote.author}</span>}
+            </div>
+          </div>
+          <button
+            onClick={handleRefreshQuote}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-900/30 hover:bg-blue-900/50 text-[10px] font-bold text-blue-100 hover:text-white transition duration-150 border border-blue-100/5 cursor-pointer self-end sm:self-auto shrink-0"
+            title="Ver otra frase motivacional"
+            id="refresh-quote-btn"
+          >
+            <RefreshCw className="w-3 h-3 text-amber-300" />
+            <span>Ver otra</span>
           </button>
         </div>
       </div>
