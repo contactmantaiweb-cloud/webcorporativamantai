@@ -72,7 +72,7 @@ export default function CalendarView({
 
   // Form states - Note (Admin only)
   const [noteContent, setNoteContent] = useState('');
-  const [noteDate, setNoteDate] = useState('');
+  const [noteDate, setNoteDate] = useState(() => formatDateLocal(new Date()));
   const [noteTargetMemberId, setNoteTargetMemberId] = useState(members[0]?.id || '');
 
   // Filter state for notebook pendientes
@@ -262,7 +262,8 @@ export default function CalendarView({
   const handleNoteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const finalTargetMemberId = noteTargetMemberId || 'ALL';
-    if (!isAdmin || !noteContent.trim() || !noteDate || !finalTargetMemberId) return;
+    const finalDate = noteDate || formatDateLocal(new Date());
+    if (!isAdmin || !noteContent.trim() || !finalDate || !finalTargetMemberId) return;
 
     const assignedMember = members.find(m => m.id === finalTargetMemberId);
     const targetMemberName = finalTargetMemberId === 'ALL'
@@ -271,7 +272,7 @@ export default function CalendarView({
 
     const noteData = {
       content: noteContent,
-      date: noteDate,
+      date: finalDate,
       targetMemberId: finalTargetMemberId,
       targetMemberName: targetMemberName,
       createdAt: editingNote ? editingNote.createdAt : Date.now(),
@@ -289,6 +290,7 @@ export default function CalendarView({
     setIsNoteModalOpen(false);
     if (!editingNote) {
       setNoteContent('');
+      setNoteDate(formatDateLocal(new Date()));
     }
   };
 
@@ -526,7 +528,7 @@ export default function CalendarView({
                       </div>
 
                       {/* Display Items List */}
-                      <div className="flex-1 space-y-1 overflow-y-auto max-h-[70px] scrollbar-thin">
+                      <div className="flex-1 space-y-1 overflow-y-auto max-h-[140px] scrollbar-thin">
                         {/* Show Public Jobs */}
                         {dayJobs.map(job => {
                           const style = statusStyles[job.status || 'pending'];
@@ -923,9 +925,18 @@ export default function CalendarView({
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-bold text-amber-800 uppercase tracking-wider mb-1.5">
-                          Fecha Limite / Registro
-                        </label>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-[10px] font-bold text-amber-800 uppercase tracking-wider">
+                            Fecha Límite / Registro
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setNoteDate(formatDateLocal(new Date()))}
+                            className="text-[10px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-md transition cursor-pointer"
+                          >
+                            Hoy
+                          </button>
+                        </div>
                         <input
                           type="date"
                           required
@@ -980,7 +991,7 @@ export default function CalendarView({
                       No hay pendientes que coincidan con el filtro seleccionado.
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[420px] overflow-y-auto pr-1 scrollbar-thin">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {visibleNotes.map(note => (
                         <div
                           key={note.id}
@@ -1322,15 +1333,24 @@ export default function CalendarView({
             <form onSubmit={handleNoteSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
-                    Fecha del Registro
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                      Fecha del Registro
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setNoteDate(formatDateLocal(new Date()))}
+                      className="text-[10px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-md transition cursor-pointer"
+                    >
+                      Hoy
+                    </button>
+                  </div>
                   <input
                     type="date"
                     required
-                    value={noteDate}
+                    value={noteDate || formatDateLocal(new Date())}
                     onChange={(e) => setNoteDate(e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold text-gray-800"
                   />
                 </div>
 
