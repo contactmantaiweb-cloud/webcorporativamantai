@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, Plus, Wallet, History, Send, Trash2, Info } from 'lucide-react';
 import { Member, Transaction } from '../types';
 import { useConfirm } from './ConfirmProvider';
+import { parseLocalDate } from '../utils/dateUtils';
 
 interface MemberPaymentsViewProps {
   member: Member;
@@ -36,7 +37,7 @@ export default function MemberPaymentsView({
   // Payments History (only expenses targeted to this member)
   const paymentHistory = transactions
     .filter((t) => t.targetMemberId === member.id && t.type === 'expense')
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a, b) => parseLocalDate(b.date).getTime() - parseLocalDate(a.date).getTime());
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

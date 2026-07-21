@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Transaction, CategoryBudget, Invoice, Member } from '../types';
 import { getQuoteOfDay, MOTIVATIONAL_QUOTES } from '../data/quotes';
+import { parseLocalDate } from '../utils/dateUtils';
 
 interface DashboardViewProps {
   transactions: Transaction[];
@@ -69,7 +70,7 @@ export default function DashboardView({
         }
 
         // Monthly check
-        const tDate = new Date(t.date);
+        const tDate = parseLocalDate(t.date);
         if (tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear) {
           if (t.type === 'income') {
             monthlyIncome += t.amount;
@@ -138,7 +139,7 @@ export default function DashboardView({
 
   const recentTransactions = useMemo(() => {
     return [...transactions]
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .sort((a, b) => parseLocalDate(b.date).getTime() - parseLocalDate(a.date).getTime())
       .slice(0, 5);
   }, [transactions]);
 

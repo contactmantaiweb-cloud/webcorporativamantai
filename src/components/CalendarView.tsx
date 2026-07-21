@@ -14,10 +14,13 @@ import {
   AlertCircle, 
   BookOpen,
   X,
-  Info
+  Info,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { Member, CalendarJob, AdminNote } from '../types';
 import { useConfirm } from './ConfirmProvider';
+import { formatDateLocal, parseLocalDate } from '../utils/dateUtils';
 
 interface CalendarViewProps {
   currentMember: Member;
@@ -71,6 +74,9 @@ export default function CalendarView({
   const [noteContent, setNoteContent] = useState('');
   const [noteDate, setNoteDate] = useState('');
   const [noteTargetMemberId, setNoteTargetMemberId] = useState(members[0]?.id || '');
+
+  // Filter state for notebook pendientes
+  const [noteFilter, setNoteFilter] = useState<'all' | 'pending' | 'completed'>('all');
 
   // Helper date parsing
   const year = currentDate.getFullYear();
@@ -146,13 +152,6 @@ export default function CalendarView({
     return days;
   }, [currentDate]);
 
-  function formatDateLocal(d: Date): string {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-  }
-
   const handlePrev = () => {
     if (viewType === 'month') {
       setCurrentDate(new Date(year, month - 1, 1));
@@ -226,7 +225,9 @@ export default function CalendarView({
     if (!jobTitle.trim() || !jobDate || !jobMemberId) return;
 
     const assignedMember = members.find(m => m.id === jobMemberId);
-    const memberName = assignedMember ? assignedMember.name : 'Sin asignar';
+    const memberName = jobMemberId === 'ALL'
+      ? 'TODOS (Todo el Equipo)'
+      : (assignedMember ? assignedMember.name : 'Sin asignar');
 
     const jobData = {
       title: jobTitle,
@@ -260,18 +261,23 @@ export default function CalendarView({
 
   const handleNoteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const finalTargetMemberId = noteTargetMemberId || members[0]?.id;
+    const finalTargetMemberId = noteTargetMemberId || 'ALL';
     if (!isAdmin || !noteContent.trim() || !noteDate || !finalTargetMemberId) return;
 
     const assignedMember = members.find(m => m.id === finalTargetMemberId);
-    const targetMemberName = assignedMember ? assignedMember.name : 'Sin asignar';
+    const targetMemberName = finalTargetMemberId === 'ALL'
+      ? 'TODOS (Todo el Equipo)'
+      : (assignedMember ? assignedMember.name : 'Sin asignar');
 
     const noteData = {
       content: noteContent,
       date: noteDate,
       targetMemberId: finalTargetMemberId,
       targetMemberName: targetMemberName,
-      createdAt: editingNote ? editingNote.createdAt : Date.now()
+      createdAt: editingNote ? editingNote.createdAt : Date.now(),
+      completed: editingNote ? editingNote.completed : false,
+      completedAt: editingNote ? editingNote.completedAt : undefined,
+      completedBy: editingNote ? editingNote.completedBy : undefined,
     };
 
     if (editingNote) {
@@ -288,9 +294,19 @@ export default function CalendarView({
 
   const handleNoteDelete = async () => {
     if (!editingNote || !isAdmin) return;
-    confirmDialog('¿Estás seguro de que deseas eliminar esta nota personal?', async () => {
+    confirmDialog('¿Estás seguro de que deseas eliminar este pendiente?', async () => {
       await onDeleteAdminNote(editingNote.id);
       setIsNoteModalOpen(false);
+    });
+  };
+
+  const handleToggleNoteComplete = async (note: AdminNote, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const nextCompleted = !note.completed;
+    await onUpdateAdminNote(note.id, {
+      completed: nextCompleted,
+      completedAt: nextCompleted ? Date.now() : undefined,
+      completedBy: nextCompleted ? currentMember.name : undefined,
     });
   };
 
@@ -309,8 +325,8 @@ export default function CalendarView({
   const notesByDate = useMemo(() => {
     const map: Record<string, AdminNote[]> = {};
     adminNotes.forEach(n => {
-      // Admins see all notes. Other members only see notes dedicated specifically to them.
-      const canSee = isAdmin || n.targetMemberId === currentMember.id;
+      // Admins see all notes. Other members see notes dedicated specifically to them or to 'ALL'.
+      const canSee = isAdmin || n.targetMemberId === currentMember.id || n.targetMemberId === 'ALL';
       if (!canSee) return;
 
       if (!map[n.date]) {
@@ -319,6 +335,31 @@ export default function CalendarView({
       map[n.date].push(n);
     });
     return map;
+  }, [adminNotes, isAdmin, currentMember.id]);
+
+  // Filter notes for the notebook
+  const visibleNotes = useMemo(() => {
+    let list = isAdmin 
+      ? adminNotes 
+      : adminNotes.filter(n => n.targetMemberId === currentMember.id || n.targetMemberId === 'ALL');
+
+    if (noteFilter === 'pending') {
+      list = list.filter(n => !n.completed);
+    } else if (noteFilter === 'completed') {
+      list = list.filter(n => n.completed);
+    }
+
+    return list.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
+  }, [adminNotes, isAdmin, currentMember.id, noteFilter]);
+
+  const noteStats = useMemo(() => {
+    const base = isAdmin 
+      ? adminNotes 
+      : adminNotes.filter(n => n.targetMemberId === currentMember.id || n.targetMemberId === 'ALL');
+    const total = base.length;
+    const completed = base.filter(n => n.completed).length;
+    const pending = total - completed;
+    return { total, completed, pending };
   }, [adminNotes, isAdmin, currentMember.id]);
 
   // Status visual configurations
@@ -501,6 +542,37 @@ export default function CalendarView({
                             </div>
                           );
                         })}
+
+                        {/* Show Notes / Pendientes */}
+                        {dayNotes.map(note => (
+                          <div
+                            key={note.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleNoteComplete(note, e);
+                            }}
+                            className={`border text-[10px] font-medium py-0.5 px-1.5 rounded-md flex items-center justify-between gap-1 transition truncate cursor-pointer ${
+                              note.completed
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-800 line-through opacity-75 hover:bg-emerald-100'
+                                : 'bg-amber-100/90 border-amber-300 text-amber-950 font-bold hover:bg-amber-200'
+                            }`}
+                            title={`Pendiente: ${note.content} | Para: ${note.targetMemberName} (${note.completed ? 'COMPLETADO' : 'PENDIENTE'}) - Clic para alternar`}
+                          >
+                            <div className="flex items-center gap-1 truncate">
+                              {note.completed ? (
+                                <CheckSquare className="w-3 h-3 text-emerald-600 shrink-0" />
+                              ) : (
+                                <Square className="w-3 h-3 text-amber-700 shrink-0" />
+                              )}
+                              <span className="truncate font-bold">{note.content}</span>
+                            </div>
+                            {isAdmin && (
+                              <span className="text-[8px] opacity-75 truncate font-semibold shrink-0">
+                                ({(note.targetMemberName || '').split(' ')[0]})
+                              </span>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   );
@@ -546,36 +618,68 @@ export default function CalendarView({
                         + Asignar
                       </div>
 
-                      {/* Jobs */}
-                      {dayJobs.length === 0 ? (
+                      {/* Jobs and Notes */}
+                      {dayJobs.length === 0 && dayNotes.length === 0 ? (
                         <div className="py-8 text-center text-gray-300 text-[10px] font-bold">
                           Sin actividades
                         </div>
                       ) : (
-                        dayJobs.map(job => {
-                          const style = statusStyles[job.status || 'pending'];
-                          return (
-                            <div
-                              key={job.id}
-                              onClick={(e) => openEditJobModal(job, e)}
-                              className={`p-2.5 rounded-xl border hover:shadow-sm transition text-xs space-y-1.5 ${style.bg}`}
-                            >
-                              <h4 className="font-extrabold leading-tight">{job.title}</h4>
-                              
-                              <div className="flex items-center gap-1.5 text-[10px] opacity-80">
-                                <User className="w-3 h-3 shrink-0" />
-                                <span className="font-semibold truncate">{job.memberName}</span>
-                              </div>
+                        <>
+                          {dayJobs.map(job => {
+                            const style = statusStyles[job.status || 'pending'];
+                            return (
+                              <div
+                                key={job.id}
+                                onClick={(e) => openEditJobModal(job, e)}
+                                className={`p-2.5 rounded-xl border hover:shadow-sm transition text-xs space-y-1.5 ${style.bg}`}
+                              >
+                                <h4 className="font-extrabold leading-tight">{job.title}</h4>
+                                
+                                <div className="flex items-center gap-1.5 text-[10px] opacity-80">
+                                  <User className="w-3 h-3 shrink-0" />
+                                  <span className="font-semibold truncate">{job.memberName}</span>
+                                </div>
 
-                              <div className="flex items-center justify-between pt-1 border-t border-black/5">
-                                <span className="text-[9px] font-bold uppercase tracking-wider">
-                                  {style.label}
-                                </span>
-                                <div className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+                                <div className="flex items-center justify-between pt-1 border-t border-black/5">
+                                  <span className="text-[9px] font-bold uppercase tracking-wider">
+                                    {style.label}
+                                  </span>
+                                  <div className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+                                </div>
                               </div>
+                            );
+                          })}
+
+                          {dayNotes.map(note => (
+                            <div
+                              key={note.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleNoteComplete(note, e);
+                              }}
+                              className={`p-2 rounded-xl border transition text-xs space-y-1 cursor-pointer ${
+                                note.completed
+                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                                  : 'bg-amber-100/90 border-amber-300 text-amber-950 font-bold'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-[9px] font-black uppercase text-amber-800">Pendiente</span>
+                                <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded ${
+                                  note.completed ? 'bg-emerald-200 text-emerald-900' : 'bg-amber-200 text-amber-900'
+                                }`}>
+                                  {note.completed ? '✓ HECHO' : '⏳ PENDIENTE'}
+                                </span>
+                              </div>
+                              <p className={`text-xs ${note.completed ? 'line-through text-gray-500' : 'font-bold'}`}>
+                                {note.content}
+                              </p>
+                              {isAdmin && (
+                                <span className="text-[9px] text-gray-500 block truncate">Para: {note.targetMemberName}</span>
+                              )}
                             </div>
-                          );
-                        })
+                          ))}
+                        </>
                       )}
                     </div>
                   </div>
@@ -720,20 +824,54 @@ export default function CalendarView({
         </div>
 
         <div className="pt-4 space-y-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-amber-200/60">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-amber-200/60">
             <div>
               <span className="text-[10px] font-extrabold text-amber-800 uppercase tracking-widest block mb-1">
-                {isAdmin ? 'Módulo de Notas del Administrador' : 'Tus Mensajes de la Administración'}
+                {isAdmin ? 'Módulo de Gestión de Pendientes (Admin)' : 'Tus Pendientes Asignados'}
               </span>
               <h3 className="text-xl font-black text-amber-950 tracking-tight flex items-center gap-2">
                 <BookOpen className="w-5 h-5 text-amber-700" />
-                Libreta de Mensajes y Notas para el Equipo
+                Libreta de Pendientes y Tareas del Equipo
               </h3>
-              <p className="text-xs text-amber-800/70 mt-1 leading-relaxed">
+              <p className="text-xs text-amber-800/80 mt-1 leading-relaxed">
                 {isAdmin 
-                  ? 'Redacta y envía indicaciones, mensajes semanales o tareas específicas directamente a la libreta personal de cada miembro.' 
-                  : 'Aquí encontrarás indicaciones, comentarios o mensajes semanales que el administrador ha dejado específicamente para ti.'}
+                  ? 'Asigna notas y tareas a los colaboradores. Cuando el colaborador marque la casilla como hecha, verás el estado actualizado de inmediato.' 
+                  : 'Revisa las tareas y mensajes que la administración te ha enviado. Marca la casilla cuando las hayas completado para notificar al administrador.'}
               </p>
+            </div>
+
+            {/* Filter Tabs for Pendientes */}
+            <div className="flex items-center gap-1.5 bg-white/80 p-1.5 rounded-2xl border border-amber-200/80 shrink-0">
+              <button
+                onClick={() => setNoteFilter('all')}
+                className={`px-3 py-1.5 text-xs font-extrabold rounded-xl transition cursor-pointer ${
+                  noteFilter === 'all' 
+                    ? 'bg-amber-700 text-white shadow-xs' 
+                    : 'text-amber-900 hover:bg-amber-100/50'
+                }`}
+              >
+                Todos ({noteStats.total})
+              </button>
+              <button
+                onClick={() => setNoteFilter('pending')}
+                className={`px-3 py-1.5 text-xs font-extrabold rounded-xl transition cursor-pointer ${
+                  noteFilter === 'pending' 
+                    ? 'bg-amber-600 text-white shadow-xs' 
+                    : 'text-amber-900 hover:bg-amber-100/50'
+                }`}
+              >
+                Pendientes ({noteStats.pending})
+              </button>
+              <button
+                onClick={() => setNoteFilter('completed')}
+                className={`px-3 py-1.5 text-xs font-extrabold rounded-xl transition cursor-pointer ${
+                  noteFilter === 'completed' 
+                    ? 'bg-emerald-700 text-white shadow-xs' 
+                    : 'text-amber-900 hover:bg-amber-100/50'
+                }`}
+              >
+                Completados ({noteStats.completed})
+              </button>
             </div>
           </div>
 
@@ -742,22 +880,22 @@ export default function CalendarView({
             {isAdmin ? (
               <>
                 {/* Form to create/edit note */}
-                <div className="lg:col-span-4 bg-white/70 backdrop-blur-xs p-5 rounded-2xl border border-amber-200/50 space-y-4">
+                <div className="lg:col-span-4 bg-white/80 backdrop-blur-xs p-5 rounded-2xl border border-amber-200/60 space-y-4 shadow-xs">
                   <h4 className="text-xs font-black text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
                     <FileText className="w-4 h-4 text-amber-700" />
-                    {editingNote ? 'Editar Nota Seleccionada' : 'Crear Nota / Mensaje'}
+                    {editingNote ? 'Editar Pendiente Seleccionado' : 'Asignar Nuevo Pendiente'}
                   </h4>
                   
                   <form onSubmit={handleNoteSubmit} className="space-y-4">
                     <div>
                       <label className="block text-[10px] font-bold text-amber-800 uppercase tracking-wider mb-1.5">
-                        Contenido del Mensaje
+                        Descripción del Pendiente / Tarea
                       </label>
                       <textarea
                         value={noteContent}
                         onChange={(e) => setNoteContent(e.target.value)}
-                        placeholder="Escribe las indicaciones o mensaje importante para esta semana..."
-                        className="w-full text-xs p-3 bg-white border border-amber-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-amber-950 placeholder-amber-700/50"
+                        placeholder="Escribe las indicaciones o tarea que la persona debe realizar..."
+                        className="w-full text-xs p-3 bg-white border border-amber-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-amber-950 placeholder-amber-700/50 font-medium"
                         rows={4}
                         required
                       />
@@ -775,9 +913,10 @@ export default function CalendarView({
                           className="w-full text-[11px] p-2 bg-white border border-amber-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold text-amber-950"
                         >
                           <option value="">Seleccionar...</option>
+                          <option value="ALL">🌐 TODOS (Todo el equipo)</option>
                           {members.map(m => (
                             <option key={m.id} value={m.id}>
-                              {m.name}
+                              {m.name} ({m.role})
                             </option>
                           ))}
                         </select>
@@ -785,7 +924,7 @@ export default function CalendarView({
 
                       <div>
                         <label className="block text-[10px] font-bold text-amber-800 uppercase tracking-wider mb-1.5">
-                          Fecha
+                          Fecha Limite / Registro
                         </label>
                         <input
                           type="date"
@@ -818,7 +957,7 @@ export default function CalendarView({
                           editingNote ? 'w-2/3 bg-amber-700 hover:bg-amber-800' : 'w-full bg-amber-700 hover:bg-amber-800'
                         }`}
                       >
-                        {editingNote ? 'Guardar Cambios' : 'Enviar Nota / Mensaje'}
+                        {editingNote ? 'Guardar Cambios' : 'Asignar Pendiente'}
                       </button>
                     </div>
                   </form>
@@ -826,42 +965,96 @@ export default function CalendarView({
 
                 {/* List of sent notes */}
                 <div className="lg:col-span-8 space-y-3">
-                  <h4 className="text-xs font-black text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <BookOpen className="w-4 h-4 text-amber-700" />
-                    Historial de Notas de la Semana ({adminNotes.length})
-                  </h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <BookOpen className="w-4 h-4 text-amber-700" />
+                      Pendientes Asignados ({visibleNotes.length})
+                    </h4>
+                    <span className="text-[11px] font-bold text-amber-800/80">
+                      {noteStats.completed} completados de {noteStats.total}
+                    </span>
+                  </div>
 
-                  {adminNotes.length === 0 ? (
-                    <div className="text-center py-12 bg-white/30 border border-dashed border-amber-200 rounded-2xl text-amber-800/60 text-xs italic">
-                      No has enviado notas todavía. Usa el formulario de la izquierda para redactar tu primera indicación.
+                  {visibleNotes.length === 0 ? (
+                    <div className="text-center py-12 bg-white/40 border border-dashed border-amber-200 rounded-2xl text-amber-800/70 text-xs font-semibold">
+                      No hay pendientes que coincidan con el filtro seleccionado.
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[360px] overflow-y-auto pr-1 scrollbar-thin">
-                      {[...adminNotes]
-                        .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt)
-                        .map(note => (
-                          <div
-                            key={note.id}
-                            className="p-4 bg-white hover:bg-amber-50/40 border border-amber-100 rounded-2xl shadow-xs transition duration-200 relative group flex flex-col justify-between"
-                          >
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between text-[9px] font-black text-amber-800 uppercase border-b border-amber-100/50 pb-1.5">
-                                <span className="flex items-center gap-1">
-                                  <CalendarIcon className="w-3 h-3 text-amber-600" />
-                                  <span>{note.date}</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[420px] overflow-y-auto pr-1 scrollbar-thin">
+                      {visibleNotes.map(note => (
+                        <div
+                          key={note.id}
+                          className={`p-4 rounded-2xl border transition duration-200 relative group flex flex-col justify-between shadow-xs ${
+                            note.completed 
+                              ? 'bg-emerald-50/60 border-emerald-200' 
+                              : 'bg-white border-amber-200 hover:border-amber-300'
+                          }`}
+                        >
+                          <div className="space-y-2.5">
+                            <div className="flex items-center justify-between text-[9px] font-black uppercase border-b border-amber-100/60 pb-2">
+                              <span className="flex items-center gap-1 text-amber-900">
+                                <CalendarIcon className="w-3 h-3 text-amber-600" />
+                                <span>{note.date}</span>
+                              </span>
+                              
+                              {/* Status Badge */}
+                              {note.completed ? (
+                                <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-0.5 rounded-full text-[9px] font-black flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  COMPLETADO
                                 </span>
-                                <span className="bg-amber-100 px-2.5 py-0.5 rounded-full text-[8px] text-amber-900 font-extrabold">
-                                  Para: {note.targetMemberName}
+                              ) : (
+                                <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-full text-[9px] font-black flex items-center gap-1">
+                                  <Clock className="w-3 h-3 text-amber-600 animate-pulse" />
+                                  PENDIENTE
                                 </span>
-                              </div>
-                              <p className="text-xs text-amber-950 leading-relaxed font-bold break-words whitespace-pre-wrap">{note.content}</p>
+                              )}
                             </div>
-                            <div className="flex items-center justify-end gap-1.5 mt-3 pt-2 border-t border-amber-50">
+
+                            <div className="flex items-center justify-between text-xs font-bold text-amber-900">
+                              <span className="bg-amber-100/80 px-2.5 py-0.5 rounded-lg text-[10px] text-amber-950 font-black">
+                                Para: {note.targetMemberName}
+                              </span>
+                            </div>
+
+                            <p className={`text-xs leading-relaxed font-bold break-words whitespace-pre-wrap ${
+                              note.completed ? 'line-through text-gray-500' : 'text-amber-950'
+                            }`}>
+                              {note.content}
+                            </p>
+
+                            {note.completed && (
+                              <p className="text-[10px] text-emerald-700 font-extrabold bg-emerald-100/60 p-2 rounded-xl flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span>
+                                  Marcado por <strong>{note.completedBy || note.targetMemberName}</strong>
+                                  {note.completedAt ? ` (${new Date(note.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : ''}
+                                </span>
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between gap-2 mt-4 pt-2.5 border-t border-amber-100/60">
+                            {/* Toggle Complete button for Admin */}
+                            <button
+                              type="button"
+                              onClick={(e) => handleToggleNoteComplete(note, e)}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shadow-2xs ${
+                                note.completed
+                                  ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
+                                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                              }`}
+                            >
+                              {note.completed ? <Square className="w-3.5 h-3.5" /> : <CheckSquare className="w-3.5 h-3.5" />}
+                              <span>{note.completed ? 'Reabrir Pendiente' : 'Marcar Completado'}</span>
+                            </button>
+
+                            <div className="flex items-center gap-1">
                               <button
                                 type="button"
                                 onClick={(e) => openEditNoteModal(note, e)}
-                                className="p-1 hover:bg-amber-100/60 rounded text-amber-700 transition"
-                                title="Editar Nota"
+                                className="p-1.5 hover:bg-amber-100/80 rounded-lg text-amber-800 transition"
+                                title="Editar"
                               >
                                 <Edit className="w-3.5 h-3.5" />
                               </button>
@@ -869,18 +1062,19 @@ export default function CalendarView({
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  confirmDialog('¿Eliminar esta nota de la libreta?', async () => {
+                                  confirmDialog('¿Eliminar este pendiente de la libreta?', async () => {
                                     await onDeleteAdminNote(note.id);
                                   });
                                 }}
-                                className="p-1 hover:bg-red-50 rounded text-red-600 transition"
-                                title="Eliminar Nota"
+                                className="p-1.5 hover:bg-red-50 rounded-lg text-red-600 transition"
+                                title="Eliminar"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           </div>
-                        ))}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -891,41 +1085,85 @@ export default function CalendarView({
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-black text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
                     <BookOpen className="w-4 h-4 text-amber-700" />
-                    Tus Notas de la Administración ({adminNotes.filter(n => n.targetMemberId === currentMember.id).length})
+                    Tus Pendientes Asignados ({visibleNotes.length})
                   </h4>
+                  <span className="text-[11px] font-bold text-amber-800/80">
+                    {noteStats.completed} completados de {noteStats.total}
+                  </span>
                 </div>
 
-                {adminNotes.filter(n => n.targetMemberId === currentMember.id).length === 0 ? (
-                  <div className="text-center py-16 bg-white/40 border border-dashed border-amber-200 rounded-2xl text-amber-800/60 text-xs font-bold">
-                    No tienes indicaciones o notas directas de la administración en este momento. ¡Sigue con el excelente trabajo!
+                {visibleNotes.length === 0 ? (
+                  <div className="text-center py-16 bg-white/40 border border-dashed border-amber-200 rounded-2xl text-amber-800/70 text-xs font-bold">
+                    No tienes pendientes {noteFilter !== 'all' ? `en estado "${noteFilter}"` : ''} en este momento. ¡Excelente trabajo!
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {[...adminNotes]
-                      .filter(n => n.targetMemberId === currentMember.id)
-                      .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt)
-                      .map(note => (
-                        <div
-                          key={note.id}
-                          className="p-5 bg-white border border-amber-200/80 rounded-2xl shadow-xs transition duration-200 relative flex flex-col justify-between"
-                        >
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between text-[9px] font-bold text-amber-800 uppercase border-b border-amber-100 pb-1.5">
-                              <span className="flex items-center gap-1">
-                                <CalendarIcon className="w-3 h-3 text-amber-600" />
-                                <span>{note.date}</span>
+                    {visibleNotes.map(note => (
+                      <div
+                        key={note.id}
+                        className={`p-5 rounded-2xl border transition duration-200 relative flex flex-col justify-between shadow-xs ${
+                          note.completed 
+                            ? 'bg-emerald-50/70 border-emerald-200' 
+                            : 'bg-white border-amber-200/90 hover:border-amber-300'
+                        }`}
+                      >
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between text-[9px] font-bold text-amber-800 uppercase border-b border-amber-100 pb-2">
+                            <span className="flex items-center gap-1">
+                              <CalendarIcon className="w-3 h-3 text-amber-600" />
+                              <span>{note.date}</span>
+                            </span>
+
+                            {note.completed ? (
+                              <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-0.5 rounded-full text-[9px] font-black flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                COMPLETADO
                               </span>
-                              <span className="bg-amber-100 px-2 py-0.5 rounded text-[8px] text-amber-900 font-extrabold">
-                                Indicación Personal
+                            ) : (
+                              <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-full text-[9px] font-black flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-amber-600 animate-pulse" />
+                                PENDIENTE
                               </span>
-                            </div>
-                            <p className="text-xs text-amber-950 leading-relaxed font-bold break-words whitespace-pre-wrap">{note.content}</p>
+                            )}
                           </div>
-                          <div className="text-[9px] text-amber-700 font-extrabold text-right mt-4 italic">
-                            De: Administración
+
+                          <p className={`text-xs leading-relaxed font-bold break-words whitespace-pre-wrap ${
+                            note.completed ? 'line-through text-gray-500' : 'text-amber-950'
+                          }`}>
+                            {note.content}
+                          </p>
+
+                          <div className="text-[10px] text-amber-700/80 font-extrabold italic">
+                            Asignado por: Administración
                           </div>
                         </div>
-                      ))}
+
+                        {/* Interactive Action Button for Team Member */}
+                        <div className="mt-4 pt-3 border-t border-amber-100">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleNoteComplete(note)}
+                            className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 font-black text-xs rounded-xl transition shadow-xs cursor-pointer ${
+                              note.completed
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                : 'bg-amber-500 hover:bg-amber-600 text-white'
+                            }`}
+                          >
+                            {note.completed ? (
+                              <>
+                                <CheckSquare className="w-4 h-4" />
+                                <span>¡Completado! (Toca para reabrir)</span>
+                              </>
+                            ) : (
+                              <>
+                                <Square className="w-4 h-4" />
+                                <span>Marcar como Completado</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -1004,9 +1242,10 @@ export default function CalendarView({
                   required
                   value={jobMemberId}
                   onChange={(e) => setJobMemberId(e.target.value)}
-                  className="w-full px-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-gray-800"
                 >
                   <option value="">Selecciona un miembro...</option>
+                  <option value="ALL">🌐 TODOS (Todo el equipo)</option>
                   {members.map(m => (
                     <option key={m.id} value={m.id}>
                       {m.name} ({m.role})
@@ -1106,6 +1345,7 @@ export default function CalendarView({
                     className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-gray-700"
                   >
                     <option value="">Selecciona destinatario...</option>
+                    <option value="ALL">🌐 TODOS (Todo el equipo)</option>
                     {members.map(m => (
                       <option key={m.id} value={m.id}>
                         {m.name} ({m.role})

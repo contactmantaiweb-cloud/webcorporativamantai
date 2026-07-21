@@ -66,5 +66,8 @@ export interface AdminNote {
   targetMemberId: string; // The team member ID this note is dedicated to
   targetMemberName: string; // The team member name
   createdAt: number;
+  completed?: boolean;
+  completedAt?: number;
+  completedBy?: string;
 }
 

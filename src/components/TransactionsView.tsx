@@ -15,10 +15,12 @@ import {
 } from 'lucide-react';
 import { Transaction, Member, UserRole } from '../types';
 import { useConfirm } from './ConfirmProvider';
+import { formatDateLocal, parseLocalDate } from '../utils/dateUtils';
 
 interface TransactionsViewProps {
   transactions: Transaction[];
   currentMember: Member;
+  members?: Member[];
   onAddTransaction: (t: Omit<Transaction, 'id'>) => void;
   onUpdateTransaction: (id: string, updated: Partial<Transaction>) => void;
   onDeleteTransaction: (id: string) => void;
@@ -43,6 +45,7 @@ const DEFAULT_CATEGORIES = [
 export default function TransactionsView({
   transactions,
   currentMember,
+  members = [],
   onAddTransaction,
   onUpdateTransaction,
   onDeleteTransaction,
@@ -60,13 +63,14 @@ export default function TransactionsView({
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Form State
-  const [formDate, setFormDate] = useState(new Date().toISOString().substring(0, 10));
+  const [formDate, setFormDate] = useState(formatDateLocal());
   const [formType, setFormType] = useState<'income' | 'expense'>('expense');
   const [formCategory, setFormCategory] = useState(DEFAULT_CATEGORIES[0]);
   const [customCategory, setCustomCategory] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formAmount, setFormAmount] = useState('');
   const [formStatus, setFormStatus] = useState<'completed' | 'pending'>('completed');
+  const [formTargetMemberId, setFormTargetMemberId] = useState<string>('');
 
   // Extract unique categories from all current transactions
   const uniqueCategories = useMemo(() => {
@@ -79,7 +83,7 @@ export default function TransactionsView({
   const filteredTransactions = useMemo(() => {
     return transactions.filter((t) => {
       const isPayment = t.category === 'Pago a Equipo' || !!t.targetMemberId;
-      const hasAccess = currentMember.role === 'admin' || t.targetMemberId === currentMember.id;
+      const hasAccess = currentMember.role === 'admin' || t.targetMemberId === currentMember.id || t.targetMemberId === 'ALL' || !t.targetMemberId;
       const displayDesc = isPayment && !hasAccess ? 'Pago realizado a un contribuyente' : t.description;
 
       const matchesSearch =
@@ -113,7 +117,7 @@ export default function TransactionsView({
     // Preserve original description if user is editing a payment they don't have access to
     const existingTx = editingId ? transactions.find((t) => t.id === editingId) : null;
     const isPayment = existingTx && (existingTx.category === 'Pago a Equipo' || !!existingTx.targetMemberId);
-    const hasAccess = existingTx && (currentMember.role === 'admin' || existingTx.targetMemberId === currentMember.id);
+    const hasAccess = existingTx && (currentMember.role === 'admin' || existingTx.targetMemberId === currentMember.id || existingTx.targetMemberId === 'ALL');
     const finalDescription = (isPayment && !hasAccess) ? (existingTx?.description || formDescription) : formDescription;
 
     const dataPayload = {
@@ -123,6 +127,7 @@ export default function TransactionsView({
       description: finalDescription,
       amount: numAmount,
       status: formStatus,
+      targetMemberId: formTargetMemberId || undefined,
       loggedBy: editingId
         ? transactions.find((t) => t.id === editingId)?.loggedBy || currentMember.name
         : currentMember.name,
@@ -139,13 +144,14 @@ export default function TransactionsView({
 
   const openAddModal = () => {
     setEditingId(null);
-    setFormDate(new Date().toISOString().substring(0, 10));
+    setFormDate(formatDateLocal());
     setFormType('expense');
     setFormCategory(DEFAULT_CATEGORIES[0]);
     setCustomCategory('');
     setFormDescription('');
     setFormAmount('');
     setFormStatus('completed');
+    setFormTargetMemberId('');
     setIsModalOpen(true);
   };
 
@@ -163,10 +169,11 @@ export default function TransactionsView({
     }
 
     const isPayment = t.category === 'Pago a Equipo' || !!t.targetMemberId;
-    const hasAccess = currentMember.role === 'admin' || t.targetMemberId === currentMember.id;
+    const hasAccess = currentMember.role === 'admin' || t.targetMemberId === currentMember.id || t.targetMemberId === 'ALL';
     setFormDescription(isPayment && !hasAccess ? 'Pago realizado a un contribuyente' : t.description);
     setFormAmount(t.amount.toString());
     setFormStatus(t.status);
+    setFormTargetMemberId(t.targetMemberId || '');
     setIsModalOpen(true);
   };
 
@@ -195,7 +202,7 @@ export default function TransactionsView({
 
     transactions.forEach((t) => {
       if (t.status !== 'completed') return;
-      const tDate = new Date(t.date);
+      const tDate = parseLocalDate(t.date);
       const day = tDate.getDate();
 
       let weekIdx = 3;
@@ -747,6 +754,28 @@ export default function TransactionsView({
                   </select>
                 </div>
               </div>
+
+              {/* Member Assignment */}
+              {members.length > 0 && (
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
+                    Asignar Responsable / Destinatario del Equipo
+                  </label>
+                  <select
+                    value={formTargetMemberId}
+                    onChange={(e) => setFormTargetMemberId(e.target.value)}
+                    className="w-full py-2 px-3 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 font-bold text-gray-700"
+                  >
+                    <option value="">Gasto / Ingreso General (Sin Asignar)</option>
+                    <option value="ALL">🌐 TODOS (Todo el equipo)</option>
+                    {members.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.role})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="pt-4 border-t border-gray-50 flex items-center justify-end gap-2">

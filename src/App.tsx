@@ -7,7 +7,7 @@ import {
   INITIAL_INVOICES,
 } from './initialData';
 import { db } from './firebase';
-import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, deleteField } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Component Imports
@@ -25,6 +25,7 @@ import ExportImportView from './components/ExportImportView';
 import AIAssistantView from './components/AIAssistantView';
 
 import { ConfirmProvider } from './components/ConfirmProvider';
+import { formatDateLocal } from './utils/dateUtils';
 
 export default function App() {
   // --- Session State from LocalStorage ---
@@ -218,7 +219,7 @@ export default function App() {
       const invoice = invoices.find((inv) => inv.id === id);
       if (invoice) {
         await handleAddTransaction({
-          date: new Date().toISOString().substring(0, 10),
+          date: formatDateLocal(),
           category: 'Ventas de Proyectos',
           description: `Cobro Factura ${invoice.id} - Cliente: ${invoice.client}`,
           amount: invoice.amount,
@@ -284,7 +285,11 @@ export default function App() {
   };
 
   const handleUpdateAdminNote = async (id: string, updated: Partial<AdminNote>) => {
-    await setDoc(doc(db, 'admin_notes', id), updated, { merge: true });
+    const cleanUpdated: Record<string, any> = {};
+    Object.entries(updated).forEach(([key, val]) => {
+      cleanUpdated[key] = val === undefined ? deleteField() : val;
+    });
+    await setDoc(doc(db, 'admin_notes', id), cleanUpdated, { merge: true });
   };
 
   const handleDeleteAdminNote = async (id: string) => {
@@ -395,6 +400,7 @@ export default function App() {
           <TransactionsView
             transactions={filteredTxs}
             currentMember={currentMember}
+            members={members}
             onAddTransaction={handleAddTransaction}
             onUpdateTransaction={handleUpdateTransaction}
             onDeleteTransaction={handleDeleteTransaction}
@@ -452,7 +458,7 @@ export default function App() {
             }}
             onAddPayment={async (amount, description) => {
               await handleAddTransaction({
-                date: new Date().toISOString().substring(0, 10),
+                date: formatDateLocal(),
                 category: 'Pago a Equipo',
                 description,
                 amount,

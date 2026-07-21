@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Invoice, Member } from '../types';
 import { useConfirm } from './ConfirmProvider';
+import { formatDateLocal } from '../utils/dateUtils';
 
 interface InvoicesViewProps {
   invoices: Invoice[];
@@ -43,11 +44,11 @@ export default function InvoicesView({
 
   // Invoice Form State
   const [clientName, setClientName] = useState('');
-  const [issueDate, setIssueDate] = useState(new Date().toISOString().substring(0, 10));
+  const [issueDate, setIssueDate] = useState(formatDateLocal());
   const [dueDate, setDueDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 30);
-    return d.toISOString().substring(0, 10);
+    return formatDateLocal(d);
   });
   const [items, setItems] = useState<Array<{ description: string; quantity: number; price: number }>>([
     { description: '', quantity: 1, price: 0 },
