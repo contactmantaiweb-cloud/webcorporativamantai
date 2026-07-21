@@ -171,6 +171,21 @@ export default function App() {
     setCurrentMember(null);
   };
 
+  // Helper to sanitize objects for Firestore (removes undefined or maps to deleteField for updates)
+  const cleanForFirestore = (obj: Record<string, any>, isUpdate = false) => {
+    const clean: Record<string, any> = {};
+    Object.entries(obj).forEach(([key, val]) => {
+      if (val === undefined) {
+        if (isUpdate) {
+          clean[key] = deleteField();
+        }
+      } else {
+        clean[key] = val;
+      }
+    });
+    return clean;
+  };
+
   // 1. Transactions Actions
   const handleAddTransaction = async (t: Omit<Transaction, 'id'>) => {
     const newId = `t-${Date.now()}`;
@@ -178,11 +193,11 @@ export default function App() {
       id: newId,
       ...t,
     };
-    await setDoc(doc(db, 'transactions', newId), newTx);
+    await setDoc(doc(db, 'transactions', newId), cleanForFirestore(newTx));
   };
 
   const handleUpdateTransaction = async (id: string, updated: Partial<Transaction>) => {
-    await setDoc(doc(db, 'transactions', id), updated, { merge: true });
+    await setDoc(doc(db, 'transactions', id), cleanForFirestore(updated, true), { merge: true });
   };
 
   const handleDeleteTransaction = async (id: string) => {
@@ -191,7 +206,7 @@ export default function App() {
 
   // 2. Budget Actions
   const handleAddBudget = async (b: CategoryBudget) => {
-    await setDoc(doc(db, 'budgets', b.category), b);
+    await setDoc(doc(db, 'budgets', b.category), cleanForFirestore(b));
   };
 
   const handleUpdateBudget = async (category: string, newLimit: number) => {
@@ -204,7 +219,7 @@ export default function App() {
 
   // 3. Invoice Actions
   const handleAddInvoice = async (inv: Invoice) => {
-    await setDoc(doc(db, 'invoices', inv.id), inv);
+    await setDoc(doc(db, 'invoices', inv.id), cleanForFirestore(inv));
   };
 
   const handleUpdateInvoiceStatus = async (
@@ -242,7 +257,7 @@ export default function App() {
       id: nextId,
       ...newM,
     };
-    await setDoc(doc(db, 'members', nextId), member);
+    await setDoc(doc(db, 'members', nextId), cleanForFirestore(member));
   };
 
   const handleToggleMemberActive = async (id: string) => {
@@ -263,11 +278,11 @@ export default function App() {
       id: newId,
       ...job,
     };
-    await setDoc(doc(db, 'calendar_jobs', newId), newJob);
+    await setDoc(doc(db, 'calendar_jobs', newId), cleanForFirestore(newJob));
   };
 
   const handleUpdateJob = async (id: string, updated: Partial<CalendarJob>) => {
-    await setDoc(doc(db, 'calendar_jobs', id), updated, { merge: true });
+    await setDoc(doc(db, 'calendar_jobs', id), cleanForFirestore(updated, true), { merge: true });
   };
 
   const handleDeleteJob = async (id: string) => {
@@ -277,19 +292,15 @@ export default function App() {
   // 7. Admin Notes Actions
   const handleAddAdminNote = async (note: Omit<AdminNote, 'id'>) => {
     const newId = `note-${Date.now()}`;
-    const newNote: AdminNote = {
+    const newNote = {
       id: newId,
       ...note,
     };
-    await setDoc(doc(db, 'admin_notes', newId), newNote);
+    await setDoc(doc(db, 'admin_notes', newId), cleanForFirestore(newNote));
   };
 
   const handleUpdateAdminNote = async (id: string, updated: Partial<AdminNote>) => {
-    const cleanUpdated: Record<string, any> = {};
-    Object.entries(updated).forEach(([key, val]) => {
-      cleanUpdated[key] = val === undefined ? deleteField() : val;
-    });
-    await setDoc(doc(db, 'admin_notes', id), cleanUpdated, { merge: true });
+    await setDoc(doc(db, 'admin_notes', id), cleanForFirestore(updated, true), { merge: true });
   };
 
   const handleDeleteAdminNote = async (id: string) => {

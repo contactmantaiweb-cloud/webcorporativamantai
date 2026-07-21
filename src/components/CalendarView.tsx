@@ -270,21 +270,26 @@ export default function CalendarView({
       ? 'TODOS (Todo el Equipo)'
       : (assignedMember ? assignedMember.name : 'Sin asignar');
 
-    const noteData = {
+    const noteData: Record<string, any> = {
       content: noteContent,
       date: finalDate,
       targetMemberId: finalTargetMemberId,
       targetMemberName: targetMemberName,
       createdAt: editingNote ? editingNote.createdAt : Date.now(),
       completed: editingNote ? editingNote.completed : false,
-      completedAt: editingNote ? editingNote.completedAt : undefined,
-      completedBy: editingNote ? editingNote.completedBy : undefined,
     };
 
+    if (editingNote?.completedAt) {
+      noteData.completedAt = editingNote.completedAt;
+    }
+    if (editingNote?.completedBy) {
+      noteData.completedBy = editingNote.completedBy;
+    }
+
     if (editingNote) {
-      await onUpdateAdminNote(editingNote.id, noteData);
+      await onUpdateAdminNote(editingNote.id, noteData as Partial<AdminNote>);
     } else {
-      await onAddAdminNote(noteData);
+      await onAddAdminNote(noteData as Omit<AdminNote, 'id'>);
     }
 
     setIsNoteModalOpen(false);
